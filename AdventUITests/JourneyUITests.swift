@@ -91,7 +91,7 @@ final class JourneyUITests: XCTestCase {
         snap(app, "07-gift-share")
         app.buttons["preview"].tap()
         XCTAssertTrue(app.staticTexts["from Grandma"].waitForExistence(timeout: 5))
-        app.buttons["door-24"].tap()
+        app.otherElements["gift-board"].buttons["door-24"].tap()
         XCTAssertTrue(app.staticTexts["day-title"].waitForExistence(timeout: 5))
         snap(app, "08-gift-preview-door")
     }

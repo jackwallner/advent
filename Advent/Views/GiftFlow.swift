@@ -128,6 +128,8 @@ struct GiftPreview: View {
                         },
                         onLocked: { _ in }
                     )
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("gift-board")
                     .padding(.top, 22)
                 }
                 .padding(.horizontal, 16)
