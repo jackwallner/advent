@@ -1,0 +1,10 @@
+.DS_Store
+build/
+DerivedData/
+*.xcodeproj/
+xcuserdata/
+.env*
+Config/Secrets.xcconfig
+fastlane/report.xml
+fastlane/README.md
+design/*-raw.png
