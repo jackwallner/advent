@@ -1,9 +1,33 @@
-<!doctype html><html><head><style>
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Link preview art. Serve the repo root (python3 -m http.server) and screenshot at 1200x630. -->
+<style id="base">
 html,body{margin:0;width:1200px;height:630px;overflow:hidden}
-body{background:radial-gradient(120% 90% at 30% 0%,#22503f 0%,#102a22 55%,#0a1d17 100%);font-family:"Iowan Old Style",Palatino,Georgia,serif;color:#f7f0e3}
-h1{position:absolute;left:80px;top:150px;margin:0;line-height:1.05;font-size:76px;font-weight:600}
-h1 span{color:#d9a441;font-size:60px;vertical-align:14px}
-p{position:absolute;left:84px;top:345px;margin:0;font-size:30px;font-style:italic;color:#ecc77a}
-.b{position:absolute;right:70px;top:85px;width:420px;padding:16px;border-radius:26px;background:linear-gradient(160deg,#7d1c2b,#5e1420);box-shadow:inset 0 0 0 3px rgba(236,199,122,.45),0 30px 60px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:126px;gap:12px}
-.b div{border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:600}
-</style></head><body><h1><span>&#10022;</span> Advent<br>Doors</h1><p>24 little doors for December</p><div class="b"><div style="background:#e2bf73;color:#2a1d14;">6</div><div style="background:#e2bf73;color:#2a1d14;">19</div><div style="background:repeating-linear-gradient(135deg,#f7f0e3 0 9px,#f1d9d4 9px 18px);color:#a3283a;">23</div><div style="background:repeating-linear-gradient(135deg,#f7f0e3 0 9px,#f1d9d4 9px 18px);color:#a3283a;">16</div><div style="background:#f7f0e3;color:#a3283a;">8</div><div style="background:#e2bf73;color:#2a1d14;">15</div><div style="background:#e2bf73;color:#2a1d14;">24</div><div style="background:#2a5a47;color:#ecc77a;">22</div><div style="background:#2a5a47;color:#ecc77a;">7</div><div style="background:#2a5a47;color:#ecc77a;">20</div><div style="background:#f7f0e3;color:#a3283a;">14</div><div style="background:#e2bf73;color:#2a1d14;">17</div></div></body></html>
+body{background:linear-gradient(180deg,#04071a 0%,#0a1436 38%,#1d2a5c 72%,#3a3972 100%)!important;position:relative}
+.aur{position:absolute;inset:0;background:radial-gradient(60% 40% at 30% 18%,rgba(70,255,175,.42),transparent 70%),radial-gradient(50% 36% at 72% 10%,rgba(120,120,255,.4),transparent 70%),radial-gradient(40% 30% at 90% 30%,rgba(70,255,175,.25),transparent 70%);filter:blur(30px)}
+#sky{position:absolute;inset:0}
+.ground{position:absolute;left:-20%;right:-20%;bottom:-70px;height:150px;background:linear-gradient(180deg,#f6f9ff,#c6d3ef);border-radius:50%/60px 60px 0 0}
+.copy{position:absolute;left:84px;top:170px;font-family:"Iowan Old Style",Palatino,Georgia,serif;color:#f7f0e3}
+.copy i{display:block;color:#f6d58a;font-size:44px;font-style:normal;margin-bottom:6px}
+.copy h1{font-size:104px;line-height:1;margin:0;font-weight:600;text-shadow:0 4px 30px rgba(0,0,0,.5)}
+.copy p{font-size:34px;font-style:italic;color:#f6d58a;margin:26px 0 0}
+.wrap{position:absolute;left:720px;top:18px;width:400px;height:720px;transform:scale(.83);transform-origin:50% 0}
+.house{left:0!important;transform:none!important;bottom:auto!important;top:0}
+</style></head><body>
+<div class="aur"></div><canvas id="sky" width="1200" height="630"></canvas><div class="ground"></div>
+<div class="copy"><i>&#10022;</i><h1>Advent<br>Doors</h1><p>24 little doors for December</p></div>
+<div class="wrap"><div class="house" id="house"></div></div>
+<script src="../docs/content.js"></script><script src="../docs/calendar.js"></script><script src="../docs/scene.js"></script>
+<script>
+(async()=>{
+  const css=(await (await fetch("../docs/index.html")).text()).match(/<style>([\s\S]*?)<\/style>/)[1];
+  const st=document.createElement("style");st.textContent=css;document.head.insertBefore(st,document.getElementById("base"));
+  const x=document.getElementById("sky").getContext("2d");const r=rng(7);x.fillStyle="#fff";
+  for(let i=0;i<260;i++){x.globalAlpha=.3+r()*.7;x.beginPath();x.arc(r()*1200,r()*470,.5+r()*1.4,0,7);x.fill()}
+  const t=THEMES[0],seed=12345,open=17,lit=new Set([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+  const cats=["selfcare","family","music","food","humor","books","puzzles","fitness"];
+  const h=document.getElementById("house");
+  h.style.cssText=`--trim:${t.trim};--sh:${t.sh};--sh2:${t.sh2};--num:${t.num}`;
+  h.innerHTML=houseBG(t,true,false)+layout(seed).map((day,i)=>{const g=slot(i),o=lit.has(day),can=day<=open;
+    return`<div class="win ${g.kind} ${o?"open":""} ${can?"":"locked"} ${can&&!o?"ready today":""}" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px"><span class="glow" style="animation:none;opacity:${o?1:can?.8:0}"></span><span class="glass">${o?`<b>${day}</b>${icon(cats[day%8],"sil")}`:""}</span><span class="sh l"></span><span class="sh r"></span><span class="num">${g.kind==="door"?WREATH:""}${day}</span><span class="sill"></span>${can&&!o?'<span class="candle"><i></i></span>':""}</div>`}).join("");
+})();
+</script></body></html>

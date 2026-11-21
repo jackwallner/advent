@@ -1,17 +1,31 @@
-<!doctype html><html><head><style>
+<!doctype html><html><head><meta charset="utf-8">
+<!-- App icon art. Screenshot at 1024x1024. One lit window on a winter night. -->
+<style>
 html,body{margin:0;width:1024px;height:1024px;overflow:hidden}
-body{background:radial-gradient(90% 90% at 50% 30%,#2b5d4a 0%,#163a2d 55%,#0d241c 100%)}
-.door{position:absolute;left:262px;top:200px;width:500px;height:690px;border-radius:250px 250px 36px 36px;background:linear-gradient(180deg,#fbf5ea,#efe2c9);box-shadow:0 30px 60px rgba(0,0,0,.45),inset 0 0 0 14px #d9a441,inset 0 0 0 22px #f7f0e3}
-.n{position:absolute;left:0;right:0;top:285px;text-align:center;font-family:"Iowan Old Style",Palatino,Georgia,serif;font-weight:700;font-size:255px;color:#a3283a;letter-spacing:-6px}
-.knob{position:absolute;right:44px;top:440px;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f6d98d,#b8862c)}
-.star{position:absolute;left:0;right:0;top:92px;text-align:center;color:#d9a441;font-size:110px;line-height:1}
-.dot{position:absolute;border-radius:50%;background:#fff;opacity:.55}
+body{position:relative;background:linear-gradient(160deg,#33477f 0%,#1f2c57 55%,#141d3f 100%)}
+.siding{position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(0,0,0,.17) 0 5px,rgba(255,255,255,.04) 5px 9px,transparent 9px 44px)}
+.glow{position:absolute;left:112px;top:92px;width:800px;height:860px;border-radius:50%;background:radial-gradient(closest-side,rgba(255,200,100,.62),rgba(255,170,60,0));filter:blur(18px)}
+.frame{position:absolute;left:312px;top:172px;width:400px;height:560px;border-radius:200px 200px 16px 16px;background:radial-gradient(circle at 50% 62%,#fff6cf 0,#ffcb6e 50%,#e08b27 100%);box-shadow:0 0 0 26px #f3ead6,0 22px 0 26px rgba(0,0,0,.22)}
+.frame::before{content:"";position:absolute;left:0;right:0;top:186px;height:18px;background:#f3ead6}
+.frame::after{content:"";position:absolute;left:50%;top:0;height:186px;width:18px;margin-left:-9px;background:#f3ead6}
+.star{position:absolute;left:50%;top:254px;width:230px;height:230px;margin-left:-115px}
+.sh{position:absolute;top:150px;width:150px;height:604px;background:linear-gradient(180deg,#c93d53,#8c2435);box-shadow:inset 0 0 0 9px rgba(0,0,0,.2)}
+.sh::after{content:"";position:absolute;inset:44px 26px;background:repeating-linear-gradient(180deg,rgba(0,0,0,.24) 0 9px,transparent 9px 34px)}
+.sh.l{left:112px;border-radius:90px 0 0 12px;transform:perspective(900px) rotateY(34deg);transform-origin:100% 50%}
+.sh.r{right:112px;border-radius:0 90px 12px 0;transform:perspective(900px) rotateY(-34deg);transform-origin:0 50%}
+.sill{position:absolute;left:226px;top:764px;width:572px;height:44px;border-radius:12px;background:#f3ead6;box-shadow:0 14px 0 rgba(0,0,0,.25)}
+.snow{position:absolute;left:214px;top:726px;width:596px;height:58px;border-radius:40px 40px 14px 14px;background:#fff}
+.flake{position:absolute;border-radius:50%;background:#fff}
 </style></head><body>
-<div class="dot" style="left:120px;top:160px;width:14px;height:14px"></div>
-<div class="dot" style="left:880px;top:240px;width:10px;height:10px"></div>
-<div class="dot" style="left:150px;top:700px;width:9px;height:9px;opacity:.35"></div>
-<div class="dot" style="left:860px;top:780px;width:13px;height:13px;opacity:.4"></div>
-<div class="dot" style="left:90px;top:430px;width:8px;height:8px;opacity:.4"></div>
-<div class="dot" style="left:930px;top:520px;width:9px;height:9px;opacity:.35"></div>
-<div class="door"><div class="star">&#10022;</div><div class="n">24</div><div class="knob"></div></div>
+<div class="siding"></div><div class="glow"></div>
+<div class="sh l"></div><div class="sh r"></div>
+<div class="frame"><svg class="star" viewBox="0 0 100 100"><path d="M50 6l10.800 27.800 29.700 1.800-23 18.900 7.500 28.800L50 67.400 25 83.300l7.500-28.800-23-18.900 29.700-1.800z" fill="#7a3d12" opacity=".9"/></svg></div>
+<div class="sill"></div><div class="snow"></div>
+<div class="flake" style="left:120px;top:120px;width:22px;height:22px;opacity:.9"></div>
+<div class="flake" style="left:860px;top:210px;width:16px;height:16px;opacity:.7"></div>
+<div class="flake" style="left:900px;top:560px;width:24px;height:24px;opacity:.85"></div>
+<div class="flake" style="left:90px;top:640px;width:14px;height:14px;opacity:.7"></div>
+<div class="flake" style="left:770px;top:80px;width:12px;height:12px;opacity:.6"></div>
+<div class="flake" style="left:200px;top:900px;width:18px;height:18px;opacity:.75"></div>
+<div class="flake" style="left:830px;top:880px;width:14px;height:14px;opacity:.65"></div>
 </body></html>

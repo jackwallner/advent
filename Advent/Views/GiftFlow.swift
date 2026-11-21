@@ -18,7 +18,6 @@ struct GiftShareView: View {
     let gift: Gift
     var onDone: () -> Void
 
-    @Environment(CalendarStore.self) private var store
     @State private var previewing = false
     @State private var copied = false
 
@@ -31,14 +30,19 @@ struct GiftShareView: View {
         ZStack {
             NightBackground()
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(spacing: 20) {
                     Text(gift.to.isEmpty ? "Your gift" : "For \(gift.to)")
                         .font(Theme.serif(34))
                         .foregroundStyle(Theme.cream)
                         .multilineTextAlignment(.center)
-                        .padding(.top, 12)
+                        .shadow(color: .black.opacity(0.5), radius: 9, y: 2)
+                        .padding(.top, 34)
                         .accessibilityAddTraits(.isHeader)
                     VStack(spacing: 0) {
+                        MiniHouse(style: HouseStyle.at(gift.theme))
+                            .frame(width: 92, height: 92)
+                            .shadow(color: Color(hex: 0xFFC864).opacity(0.45), radius: 16)
+                            .padding(.bottom, 14)
                         ShareLink(item: gift.url, message: Text(message)) {
                             Text("Send it")
                         }
@@ -58,17 +62,14 @@ struct GiftShareView: View {
                             .modifier(GhostButton())
                             .accessibilityIdentifier("done")
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 22)
-                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.cream).shadow(color: .black.opacity(0.35), radius: 20, y: 14))
-                    .padding(.top, 22)
+                    .modifier(GlassPanel())
                 }
                 .padding(.horizontal, 16)
                 .frame(maxWidth: 480)
                 .frame(maxWidth: .infinity)
             }
         }
-        .sheet(isPresented: $previewing) {
+        .fullScreenCover(isPresented: $previewing) {
             GiftPreview(gift: gift)
         }
     }
@@ -78,67 +79,44 @@ struct GhostButton: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(Theme.muted)
-            .padding(.top, 14)
+            .foregroundStyle(Theme.cream.opacity(0.7))
+            .padding(.top, 15)
     }
 }
 
-/// What the recipient will see. Opening doors here is not saved.
+/// What the recipient will see, with every door unlocked. Opening doors here is not saved.
 struct GiftPreview: View {
     let gift: Gift
-    @Environment(CalendarStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var opened: Set<Int> = []
     @State private var ratings: [Int: Int] = [:]
-    @State private var sheet: OpenDay?
 
     var body: some View {
-        ZStack {
-            NightBackground()
-            ScrollView {
-                VStack(spacing: 0) {
+        HouseScene(
+            style: HouseStyle.at(gift.theme), seed: gift.seed, days: gift.days, unlocked: CalendarBuilder.dayCount,
+            opened: opened, ratings: ratings,
+            note: (gift.to, gift.from, gift.note),
+            onOpen: { day in withAnimation(.easeInOut(duration: 0.85)) { _ = opened.insert(day) } },
+            onRate: { day, stars in ratings[day] = stars },
+            header: {
+                VStack(spacing: 2) {
                     Text(gift.to.isEmpty ? "Advent Doors" : "For \(gift.to)")
-                        .font(Theme.serif(34))
+                        .font(Theme.serif(30))
                         .foregroundStyle(Theme.cream)
-                        .padding(.top, 28)
                     if !gift.from.isEmpty {
                         Text("from \(gift.from)")
                             .font(Theme.serif(17, .regular)).italic()
                             .foregroundStyle(Theme.goldLight)
-                            .padding(.top, 6)
                     }
-                    if !gift.note.isEmpty {
-                        Text(gift.note)
-                            .font(Theme.serif(17, .regular)).italic()
-                            .foregroundStyle(Theme.cream.opacity(0.88))
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 14)
-                            .padding(.horizontal, 20)
-                    }
-                    BoardView(
-                        slots: CalendarBuilder.layout(seed: gift.seed),
-                        days: gift.days,
-                        unlocked: CalendarBuilder.dayCount,
-                        opened: opened,
-                        ratings: ratings,
-                        item: store.item,
-                        onOpen: { day in
-                            opened.insert(day)
-                            sheet = OpenDay(day: day)
-                        },
-                        onLocked: { _ in }
-                    )
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("gift-board")
-                    .padding(.top, 22)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 28)
-                .frame(maxWidth: 480)
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .overlay(alignment: .topTrailing) {
+                .shadow(color: .black.opacity(0.5), radius: 9, y: 2)
+                .padding(.top, 8)
+            },
+            footer: { Color.clear }
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("gift-board")
+        .overlay(alignment: .topLeading) {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .semibold))
@@ -146,13 +124,10 @@ struct GiftPreview: View {
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(.white.opacity(0.1)))
             }
-            .accessibilityLabel("Close")
-            .padding(16)
-        }
-        .sheet(item: $sheet) { open in
-            if let item = store.item(gift.days[open.day - 1]) {
-                DaySheet(day: open.day, item: item, rating: ratings[open.day] ?? 0) { ratings[open.day] = $0 }
-            }
+            .accessibilityLabel("Close preview")
+            .accessibilityIdentifier("close-preview")
+            .padding(.leading, 16)
+            .padding(.top, 8)
         }
     }
 }

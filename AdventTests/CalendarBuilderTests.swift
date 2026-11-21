@@ -7,8 +7,8 @@ private enum JSVectors {
     static let vecA = ["food-36", "family-36", "food-39", "family-26", "food-11", "family-32", "food-32", "family-28", "food-05", "family-18", "food-26", "family-30", "food-07", "family-37", "food-28", "family-24", "food-02", "family-35", "food-16", "family-11", "food-33", "family-08", "food-35", "family-22"]
     static let vecB = ["selfcare-23", "books-30", "selfcare-28", "books-14", "selfcare-38", "humor-31", "family-26", "humor-37", "food-37", "fitness-16", "food-41", "music-09", "selfcare-43", "music-38", "fitness-42", "music-28", "humor-12", "puzzles-29", "food-24", "music-44", "books-39", "family-19", "puzzles-37", "puzzles-09"]
     static let vecC = ["humor-19", "humor-11", "humor-10", "humor-07", "humor-08", "humor-23", "humor-05", "humor-22", "humor-12", "humor-01", "humor-17", "humor-24", "humor-18", "humor-06", "humor-04", "humor-16", "humor-20", "humor-13", "humor-02", "humor-14", "humor-03", "humor-09", "humor-21", "humor-15"]
-    static let layA: [[Int]] = [[10,1,3],[12,1,1],[20,2,3],[8,1,0],[1,1,2],[16,2,1],[22,1,3],[4,1,2],[3,2,1],[18,1,2],[23,1,1],[13,1,0],[2,1,1],[19,1,0],[15,1,2],[11,1,0],[7,1,1],[14,1,0],[6,1,2],[21,1,0],[5,1,3],[9,1,2],[17,1,3],[24,2,3]]
-    static let layB: [[Int]] = [[2,1,0],[11,1,3],[14,1,0],[1,1,1],[17,1,0],[6,1,3],[24,2,0],[5,1,2],[13,2,3],[15,1,1],[23,2,2],[21,1,1],[22,1,2],[8,1,0],[20,1,2],[16,1,3],[18,1,1],[19,1,2],[7,1,3],[10,1,2],[3,1,3],[9,2,1],[12,1,0],[4,1,1]]
+    static let layA = [7, 1, 2, 11, 18, 8, 6, 16, 20, 3, 5, 9, 19, 15, 21, 13, 12, 4, 17, 10, 22, 23, 24, 14]
+    static let layB = [23, 11, 17, 10, 9, 19, 15, 22, 18, 5, 6, 13, 21, 20, 3, 7, 14, 12, 8, 1, 2, 4, 24, 16]
 }
 
 final class CalendarBuilderTests: XCTestCase {
@@ -30,8 +30,23 @@ final class CalendarBuilderTests: XCTestCase {
     }
 
     func testMatchesWebLayout() {
-        XCTAssertEqual(CalendarBuilder.layout(seed: 12345).map { [$0.day, $0.wide ? 2 : 1, $0.color] }, JSVectors.layA)
-        XCTAssertEqual(CalendarBuilder.layout(seed: 2147483646).map { [$0.day, $0.wide ? 2 : 1, $0.color] }, JSVectors.layB)
+        XCTAssertEqual(CalendarBuilder.layout(seed: 12345), JSVectors.layA)
+        XCTAssertEqual(CalendarBuilder.layout(seed: 2147483646), JSVectors.layB)
+    }
+
+    /// Same inputs as the web: family + food + humor, low budget, seed 4242, six doors unlocked.
+    func testMatchesWebSteer() {
+        let cats: [Advent.Category] = [.family, .food, .humor]
+        let days = CalendarBuilder.pick(categories: cats, budget: .low, seed: 4242, library: library)
+        func changes(_ next: [String]?) -> [String] {
+            (next ?? days).enumerated().compactMap { i, id in id == days[i] ? nil : "\(i + 1):\(days[i])>\(id)" }
+        }
+        let up = CalendarBuilder.steer(days: days, categories: cats, seed: 4242, opened: [3], day: 3, stars: 5, unlocked: 6, library: library)
+        XCTAssertEqual(changes(up), ["7:family-07>humor-09"])
+        let down = CalendarBuilder.steer(days: days, categories: cats, seed: 4242, opened: [2], day: 2, stars: 1, unlocked: 6, library: library)
+        XCTAssertEqual(changes(down), ["9:food-28>family-28"])
+        XCTAssertNil(CalendarBuilder.steer(days: days, categories: cats, seed: 4242, opened: [2], day: 2, stars: 3, unlocked: 6, library: library))
+        XCTAssertNil(CalendarBuilder.steer(days: days, categories: cats, seed: 4242, opened: [2], day: 2, stars: 5, unlocked: 24, library: library))
     }
 
     func testEveryMixFillsTwentyFourUniqueAllowedDays() {
@@ -51,12 +66,11 @@ final class CalendarBuilderTests: XCTestCase {
         }
     }
 
-    func testLayoutPlacesEachDayOnceAndEveIsWide() {
+    func testLayoutPlacesEachDayOnceAndEveIsTheFrontDoor() {
         for seed in stride(from: UInt32(0), to: 400_000, by: 997) {
-            let slots = CalendarBuilder.layout(seed: seed)
-            XCTAssertEqual(slots.map(\.day).sorted(), Array(1...24))
-            XCTAssertTrue(slots.first { $0.day == 24 }!.wide)
-            XCTAssertEqual(CalendarBuilder.rows(slots).count, 7)
+            let days = CalendarBuilder.layout(seed: seed)
+            XCTAssertEqual(days.sorted(), Array(1...24))
+            XCTAssertEqual(days[CalendarBuilder.frontDoor], 24)
         }
     }
 
@@ -74,7 +88,7 @@ final class CalendarBuilderTests: XCTestCase {
 
     func testGiftLinkRoundTrips() {
         let days = CalendarBuilder.pick(categories: [.books, .music], budget: .low, seed: 99, library: library)
-        let gift = Gift(year: 2026, to: "Zoë", from: "Grandma & Grandpa", note: "One door a day.\nLove you", seed: 99, days: days)
+        let gift = Gift(year: 2026, to: "Zoë", from: "Grandma & Grandpa", note: "One door a day.\nLove you", seed: 99, days: days, theme: 2)
         XCTAssertTrue(gift.url.absoluteString.hasPrefix("https://jackwallner.com/ios/advent/#g="))
         XCTAssertEqual(Gift(url: gift.url, library: library), gift)
     }
@@ -109,6 +123,21 @@ final class CalendarStoreTests: XCTestCase {
         XCTAssertEqual(again.mine, store.mine)
         XCTAssertNotNil(again.progress.opened[3])
         XCTAssertEqual(again.progress.ratings[3], 5)
+    }
+
+    func testRatingSteersOnlyLockedDoorsAndOnlyOnce() {
+        let store = CalendarStore(library: .bundled, defaults: freshDefaults())
+        store.debugDay = 4
+        store.create(categories: [.family, .humor, .music], budget: .none)
+        let before = store.mine!.days
+        store.open(2)
+        store.rate(2, stars: 5)
+        let after = store.mine!.days
+        XCTAssertEqual(Array(after[..<4]), Array(before[..<4]), "doors that can be opened never change")
+        XCTAssertEqual(zip(before, after).filter { $0 != $1 }.count, 1)
+        XCTAssertEqual(Set(after).count, 24)
+        store.rate(2, stars: 1)
+        XCTAssertEqual(store.mine!.days, after, "a second rating of the same day changes nothing")
     }
 
     func testChangeKeepsOpenedDoors() {

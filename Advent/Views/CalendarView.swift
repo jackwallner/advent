@@ -1,9 +1,110 @@
 import StoreKit
 import SwiftUI
 
-struct OpenDay: Identifiable {
+/// A door whose card is showing, and where on screen its window is.
+struct OpenCard: Equatable {
     let day: Int
-    var id: Int { day }
+    let fresh: Bool
+    let anchor: CGPoint
+}
+
+/// Sky, house, snow and the card that grows out of a tapped window. Used for your own calendar and for a gift preview.
+struct HouseScene<Header: View, Footer: View>: View {
+    let style: HouseStyle
+    let seed: UInt32
+    let days: [String]
+    let unlocked: Int
+    let opened: Set<Int>
+    let ratings: [Int: Int]
+    var note: (to: String, from: String, text: String)?
+    let onOpen: (Int) -> Void
+    let onRate: (Int, Int) -> Void
+    var onLocked: (Int) -> Void = { _ in }
+    var onCardClosed: () -> Void = {}
+    @ViewBuilder var header: Header
+    @ViewBuilder var footer: Footer
+
+    @Environment(CalendarStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var snow = SnowModel()
+    @State private var card: OpenCard?
+    @State private var noteAnchor: CGPoint?
+
+    var body: some View {
+        GeometryReader { root in
+            let frame = root.frame(in: .global)
+            let unit = { (p: CGPoint) in
+                UnitPoint(x: (p.x - frame.minX) / max(frame.width, 1), y: (p.y - frame.minY) / max(frame.height, 1))
+            }
+            ZStack {
+                SkyView()
+                    .contentShape(Rectangle())
+                    .onTapGesture { point in snow.gust(from: point.x, width: root.size.width) }
+                VStack(spacing: 0) {
+                    header.frame(minHeight: 30)
+                    HouseView(
+                        style: style, seed: seed, days: days, unlocked: unlocked, opened: opened, item: store.item,
+                        hasNote: !(note?.text.isEmpty ?? true),
+                        onTap: tap,
+                        onNote: { point in withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) { noteAnchor = point } }
+                    )
+                    footer.frame(height: 56)
+                }
+                SnowView(model: snow)
+                if card != nil || noteAnchor != nil {
+                    RadialGradient(
+                        colors: [Color(hex: 0xFFC460).opacity(0.3), Theme.skyTop.opacity(0.84)],
+                        center: UnitPoint(x: 0.5, y: 0.46), startRadius: 0, endRadius: 430
+                    )
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: close)
+                    .transition(.opacity)
+                    .zIndex(1)
+                }
+                if let card, days.indices.contains(card.day - 1), let item = store.item(days[card.day - 1]) {
+                    DayCard(
+                        day: card.day, item: item, rating: ratings[card.day] ?? 0, fresh: card.fresh,
+                        onRate: { onRate(card.day, $0) }, onClose: close
+                    )
+                    .padding(20)
+                    .transition(.scale(scale: 0.12, anchor: unit(card.anchor)).combined(with: .opacity))
+                    .zIndex(2)
+                }
+                if let noteAnchor, let note {
+                    NoteCard(to: note.to, from: note.from, note: note.text, onClose: close)
+                        .padding(20)
+                        .transition(.scale(scale: 0.12, anchor: unit(noteAnchor)).combined(with: .opacity))
+                        .zIndex(2)
+                }
+            }
+        }
+    }
+
+    private func tap(_ day: Int, at point: CGPoint) {
+        guard card == nil, noteAnchor == nil else { return }
+        guard day <= unlocked else {
+            Haptics.locked()
+            return onLocked(day)
+        }
+        let fresh = !opened.contains(day)
+        let show = { withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) { card = OpenCard(day: day, fresh: fresh, anchor: point) } }
+        guard fresh else { return show() }
+        // The shutters swing open first; the card follows them out.
+        onOpen(day)
+        Haptics.open()
+        Bells.shared.chime(day: day)
+        if reduceMotion { show() } else { DispatchQueue.main.asyncAfter(deadline: .now() + 0.82) { show() } }
+    }
+
+    private func close() {
+        let wasDay = card != nil
+        withAnimation(.easeInOut(duration: 0.3)) {
+            card = nil
+            noteAnchor = nil
+        }
+        if wasDay { onCardClosed() }
+    }
 }
 
 struct CalendarView: View {
@@ -11,9 +112,9 @@ struct CalendarView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(\.openURL) private var openURL
     @AppStorage("reminders.on") private var remindersOn = true
+    @AppStorage("sound.on") private var soundOn = true
 
-    @State private var sheet: OpenDay?
-    @State private var ratedInSheet = false
+    @State private var rated = false
     @State private var editing = false
     @State private var gifting = false
     @State private var toast: String?
@@ -21,46 +122,24 @@ struct CalendarView: View {
 
     var body: some View {
         ZStack {
-            NightBackground()
             if let cal = store.mine {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        BrandTitle().padding(.top, 12)
-                        status(cal)
-                        BoardView(
-                            slots: CalendarBuilder.layout(seed: cal.seed),
-                            days: cal.days,
-                            unlocked: store.unlocked,
-                            opened: Set(store.progress.opened.keys),
-                            ratings: store.progress.ratings,
-                            item: store.item,
-                            onOpen: { day in
-                                store.open(day)
-                                ratedInSheet = false
-                                sheet = OpenDay(day: day)
-                            },
-                            onLocked: { day in show("Opens December \(day)") }
-                        )
-                        .padding(.top, 22)
-                        footer
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 28)
-                    .frame(maxWidth: 480)
-                    .frame(maxWidth: .infinity)
-                }
+                HouseScene(
+                    style: HouseStyle.at(cal.theme), seed: cal.seed, days: cal.days, unlocked: store.unlocked,
+                    opened: Set(store.progress.opened.keys), ratings: store.progress.ratings,
+                    onOpen: { store.open($0) },
+                    onRate: { day, stars in
+                        store.rate(day, stars: stars)
+                        rated = true
+                    },
+                    onLocked: { day in show("Opens December \(day)") },
+                    onCardClosed: askForReviewIfDue,
+                    header: { status(cal) },
+                    footer: { footer }
+                )
             }
         }
-        .overlay(alignment: .topTrailing) { menu }
+        .overlay(alignment: .topLeading) { menu }
         .overlay(alignment: .bottom) { toastView }
-        .sheet(item: $sheet, onDismiss: askForReviewIfDue) { open in
-            if let cal = store.mine, let item = store.item(cal.days[open.day - 1]) {
-                DaySheet(day: open.day, item: item, rating: store.progress.ratings[open.day] ?? 0) { stars in
-                    store.rate(open.day, stars: stars)
-                    ratedInSheet = true
-                }
-            }
-        }
         .fullScreenCover(isPresented: $editing) {
             SetupView(mode: .edit, canClose: true)
         }
@@ -74,10 +153,13 @@ struct CalendarView: View {
         let togo = store.daysToGo(year: cal.year)
         if store.unlocked == 0, togo > 0 {
             Text(togo == 1 ? "Opens tomorrow" : "\(togo) days to go")
-                .font(Theme.serif(17, .regular)).italic()
+                .font(Theme.serif(19, .regular)).italic()
                 .foregroundStyle(Theme.goldLight)
-                .padding(.top, 6)
+                .shadow(color: .black.opacity(0.5), radius: 8, y: 2)
+                .padding(.top, 10)
                 .accessibilityIdentifier("countdown")
+        } else {
+            Color.clear.frame(height: 1)
         }
     }
 
@@ -89,12 +171,12 @@ struct CalendarView: View {
                 .accessibilityIdentifier("gift")
         }
         .font(.system(size: 15, weight: .semibold))
-        .foregroundStyle(Theme.goldLight)
-        .padding(.top, 22)
+        .foregroundStyle(Theme.snowInk)
     }
 
     private var menu: some View {
         Menu {
+            Toggle("Bells", isOn: $soundOn)
             Toggle("Morning reminders", isOn: $remindersOn)
             if let id = AppInfo.appStoreID {
                 Button("Rate Advent Doors") {
@@ -124,7 +206,7 @@ struct CalendarView: View {
         }
         .accessibilityLabel("More")
         .accessibilityIdentifier("menu")
-        .padding(.trailing, 10)
+        .padding(.leading, 10)
         .onChange(of: remindersOn) { _, on in
             guard let year = store.mine?.year else { return }
             if on {
@@ -143,8 +225,8 @@ struct CalendarView: View {
                 .foregroundStyle(Theme.cream)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(Capsule().fill(Theme.ink))
-                .padding(.bottom, 24)
+                .background(Capsule().fill(Theme.skyTop.opacity(0.92)).overlay(Capsule().strokeBorder(Theme.goldLight.opacity(0.3), lineWidth: 1)))
+                .padding(.bottom, 76)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .accessibilityIdentifier("toast")
         }
@@ -158,12 +240,12 @@ struct CalendarView: View {
         }
     }
 
-    /// Positive moment: a door was rated. Ask after the sheet is gone, if the tracker allows.
+    /// Positive moment: a door was rated. Ask after the card is gone, if the tracker allows.
     private func askForReviewIfDue() {
-        guard ratedInSheet, reviews.shouldAsk() else { return }
-        ratedInSheet = false
+        guard rated, reviews.shouldAsk() else { return }
+        rated = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            guard sheet == nil, !editing, !gifting else { return }
+            guard !editing, !gifting else { return }
             reviews.didAsk()
             requestReview()
         }

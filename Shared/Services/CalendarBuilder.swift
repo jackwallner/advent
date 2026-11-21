@@ -26,12 +26,6 @@ struct SeededRandom {
     }
 }
 
-struct DoorSlot: Equatable, Sendable {
-    let day: Int
-    let wide: Bool
-    let color: Int
-}
-
 enum CalendarBuilder {
     static let dayCount = 24
 
@@ -110,53 +104,58 @@ enum CalendarBuilder {
         return a
     }
 
-    /// Seven rows of four cells; four rows hold one double-width door. Day 24 always gets a wide door.
-    static func layout(seed: UInt32) -> [DoorSlot] {
+    /// The house front. Slot 0 is the attic window, 1 to 20 are four windows on each of five floors,
+    /// 21 and 23 the ground floor windows, 22 the front door. Day 24 is always the front door.
+    static let frontDoor = 22
+
+    static func layout(seed: UInt32) -> [Int] {
         var r = SeededRandom(seed: seed ^ 0x9E37_79B9)
-        let wideRows = Set(r.shuffled(Array(0..<7)).prefix(4))
-        var widths: [Bool] = []
-        for row in 0..<7 {
-            if wideRows.contains(row) {
-                let at = Int(r.next() * 3)
-                for k in 0..<3 { widths.append(k == at) }
-            } else {
-                widths.append(contentsOf: [false, false, false, false])
-            }
-        }
-        let wideIndexes = widths.indices.filter { widths[$0] }
-        let eve = wideIndexes[Int(r.next() * Double(wideIndexes.count))]
-        var days = Array(repeating: 0, count: widths.count)
-        days[eve] = 24
-        var rest = r.shuffled(Array(1...23)).makeIterator()
-        for i in days.indices where days[i] == 0 { days[i] = rest.next() ?? 0 }
-        // Six doors of each color, with no two neighbors in a row the same.
-        var colors = r.shuffled((0..<widths.count).map { $0 % 4 })
-        for i in 1..<colors.count where colors[i] == colors[i - 1] {
-            for j in (i + 1)..<max(i + 1, colors.count) where colors[j] != colors[i - 1] {
-                colors.swapAt(i, j)
-                break
-            }
-        }
-        return widths.indices.map { i in
-            DoorSlot(day: days[i], wide: widths[i], color: colors[i])
-        }
+        var days = r.shuffled(Array(1...23))
+        days.insert(24, at: frontDoor)
+        return days
     }
 
-    /// Rows for the grid, in display order.
-    static func rows(_ slots: [DoorSlot]) -> [[DoorSlot]] {
-        var rows: [[DoorSlot]] = []
-        var row: [DoorSlot] = []
-        var cells = 0
-        for s in slots {
-            row.append(s)
-            cells += s.wide ? 2 : 1
-            if cells == 4 {
-                rows.append(row)
-                row = []
-                cells = 0
+    /// Ratings steer the doors that cannot be opened yet. A loved day brings one more of its kind,
+    /// a disliked one swaps the next of its kind away. Returns the new days, or nil when nothing changes.
+    static func steer(
+        days current: [String],
+        categories: [Category],
+        seed: UInt32,
+        opened: Set<Int>,
+        day: Int,
+        stars: Int,
+        unlocked: Int,
+        library: ContentLibrary
+    ) -> [String]? {
+        guard stars != 3, categories.count > 1, current.indices.contains(day - 1),
+              let rated = library.byID[current[day - 1]] else { return nil }
+        var days = current
+        let used = Set(days)
+        var r = SeededRandom(seed: seed ^ (UInt32(truncatingIfNeeded: day) &* 2_654_435_761))
+        let future = (unlocked + 1...dayCount + 1).filter { $0 <= dayCount && !opened.contains($0) }
+        func category(_ d: Int) -> Category? { library.byID[days[d - 1]]?.category }
+        func fresh(_ cat: Category, _ tier: Budget) -> Item? {
+            r.shuffled(library.items.filter { $0.category == cat && $0.budget == tier && !used.contains($0.id) }).first
+        }
+        if stars >= 4 {
+            var count: [Category: Int] = [:]
+            for d in future { if let c = category(d), c != rated.category { count[c, default: 0] += 1 } }
+            guard let top = count.keys.sorted(by: { (count[$0]!, $1.rawValue) > (count[$1]!, $0.rawValue) }).first,
+                  let d = future.first(where: { category($0) == top }),
+                  let tier = library.byID[days[d - 1]]?.budget,
+                  let item = fresh(rated.category, tier) else { return nil }
+            days[d - 1] = item.id
+            return days
+        }
+        guard let d = future.first(where: { category($0) == rated.category }),
+              let tier = library.byID[days[d - 1]]?.budget else { return nil }
+        for c in r.shuffled(categories.filter { $0 != rated.category }) {
+            if let item = fresh(c, tier) {
+                days[d - 1] = item.id
+                return days
             }
         }
-        return rows
+        return nil
     }
 
     /// How many doors may be open: 0 before December 1 of `year`, the date through the 24th, then all 24.

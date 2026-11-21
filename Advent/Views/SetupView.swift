@@ -11,6 +11,7 @@ struct SetupView: View {
 
     @State private var categories: Set<Category> = []
     @State private var budget: Budget = .none
+    @State private var theme = 0
     @State private var to = ""
     @State private var from = ""
     @State private var note = ""
@@ -22,30 +23,31 @@ struct SetupView: View {
         ZStack {
             NightBackground()
             ScrollView {
-                VStack(spacing: 22) {
-                    BrandTitle().padding(.top, 12)
+                VStack(spacing: 20) {
+                    BrandTitle().padding(.top, 34)
                     card
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)
+                // The close button rides with the content, so it never sits on top of a chip once the form scrolls.
+                .overlay(alignment: .topLeading) {
+                    if canClose {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.cream.opacity(0.8))
+                                .frame(width: 36, height: 36)
+                                .background(Circle().fill(.white.opacity(0.1)))
+                        }
+                        .accessibilityLabel("Close")
+                        .padding(.leading, 16)
+                        .padding(.top, 8)
+                    }
+                }
                 .frame(maxWidth: 480)
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
-        }
-        .overlay(alignment: .topTrailing) {
-            if canClose {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Theme.cream.opacity(0.8))
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(.white.opacity(0.1)))
-                }
-                .accessibilityLabel("Close")
-                .padding(.trailing, 16)
-                .padding(.top, 8)
-            }
         }
         .onAppear(perform: prefill)
     }
@@ -64,7 +66,7 @@ struct SetupView: View {
             heading("What's inside")
             FlowLayout(spacing: 8) {
                 ForEach(Category.allCases) { c in
-                    Chip(title: c.name, selected: categories.contains(c), tint: Theme.berry) {
+                    Chip(title: c.name, symbol: c.symbol, selected: categories.contains(c)) {
                         if categories.contains(c) { categories.remove(c) } else { categories.insert(c) }
                     }
                     .accessibilityIdentifier("cat-\(c.rawValue)")
@@ -75,10 +77,37 @@ struct SetupView: View {
             heading("Budget")
             HStack(spacing: 8) {
                 ForEach(Budget.allCases) { b in
-                    Chip(title: b.name, selected: budget == b, tint: Theme.pine, fill: true) { budget = b }
+                    Chip(title: b.name, selected: budget == b, fill: true) { budget = b }
                         .accessibilityIdentifier("budget-\(b.rawValue)")
                 }
             }
+            .padding(.bottom, 22)
+
+            heading("House")
+            HStack(spacing: 10) {
+                ForEach(HouseStyle.all) { style in
+                    Button { theme = style.id } label: {
+                        MiniHouse(style: style)
+                            .frame(width: 56, height: 56)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(theme == style.id ? Theme.goldLight.opacity(0.14) : .white.opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .strokeBorder(theme == style.id ? Theme.goldLight : Theme.cream.opacity(0.18), lineWidth: theme == style.id ? 2 : 1)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(style.name) house")
+                    .accessibilityAddTraits(theme == style.id ? .isSelected : [])
+                    .accessibilityIdentifier("house-\(style.id)")
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: theme)
             .padding(.bottom, 22)
 
             if mode == .gift { giftFields }
@@ -90,10 +119,7 @@ struct SetupView: View {
             .disabled(categories.isEmpty)
             .accessibilityIdentifier("make")
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 22)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.cream).shadow(color: .black.opacity(0.35), radius: 20, y: 14))
-        .environment(\.colorScheme, .light)
+        .modifier(GlassPanel())
     }
 
     /// When opened from "Make one for someone", the gift mode is the point, so skip the toggle.
@@ -127,8 +153,8 @@ struct SetupView: View {
 
     private func heading(_ text: String) -> some View {
         Text(text)
-            .font(Theme.serif(20))
-            .foregroundStyle(Theme.ink)
+            .font(Theme.serif(19))
+            .foregroundStyle(Theme.goldLight)
             .padding(.bottom, 10)
             .accessibilityAddTraits(.isHeader)
     }
@@ -137,6 +163,7 @@ struct SetupView: View {
         guard mode == .edit, let mine = store.mine else { return }
         categories = Set(mine.categories)
         budget = mine.budget
+        theme = mine.theme ?? 0
     }
 
     private func submit() {
@@ -155,38 +182,43 @@ struct SetupView: View {
     private func finish(_ cats: [Category]) {
         switch mode {
         case .mine:
-            store.create(categories: cats, budget: budget)
+            store.create(categories: cats, budget: budget, theme: theme)
             Task { if let year = store.mine?.year { _ = await Reminders.enable(year: year) } }
             if canClose { dismiss() }
         case .edit:
-            store.update(categories: cats, budget: budget)
+            store.update(categories: cats, budget: budget, theme: theme)
             dismiss()
         case .gift:
             let trim = { (s: String) in s.trimmingCharacters(in: .whitespacesAndNewlines) }
-            onGift(store.makeGift(categories: cats, budget: budget, to: trim(to), from: trim(from), note: trim(note)))
+            onGift(store.makeGift(categories: cats, budget: budget, theme: theme, to: trim(to), from: trim(from), note: trim(note)))
         }
     }
 }
 
 struct Chip: View {
     let title: String
+    var symbol: String?
     let selected: Bool
-    let tint: Color
     var fill = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 15, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(selected ? .white : Theme.ink)
-                .padding(.horizontal, fill ? 4 : 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: fill ? .infinity : nil)
-                .background(Capsule().fill(selected ? tint : .white))
-                .overlay(Capsule().strokeBorder(selected ? tint : Theme.line, lineWidth: 1.5))
+            HStack(spacing: 7) {
+                if let symbol {
+                    Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
+                }
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(selected ? Theme.ink : Theme.cream)
+            .padding(.horizontal, fill ? 4 : 13)
+            .padding(.vertical, 10)
+            .frame(maxWidth: fill ? .infinity : nil)
+            .background(Capsule().fill(selected ? Theme.goldLight : .white.opacity(0.05)))
+            .overlay(Capsule().strokeBorder(selected ? Theme.goldLight : Theme.cream.opacity(0.22), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .animation(.easeOut(duration: 0.15), value: selected)
@@ -198,10 +230,11 @@ struct FieldStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.system(size: 16))
-            .foregroundStyle(Theme.ink)
+            .foregroundStyle(Theme.cream)
+            .tint(Theme.goldLight)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.line, lineWidth: 1.5))
+            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(Theme.cream.opacity(0.22), lineWidth: 1))
     }
 }

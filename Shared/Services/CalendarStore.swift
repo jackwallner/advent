@@ -7,11 +7,15 @@ struct SavedCalendar: Codable, Equatable, Sendable {
     var budget: Budget
     var seed: UInt32
     var days: [String]
+    /// Which house the calendar lives in. Optional so calendars saved before houses still load.
+    var theme: Int?
 }
 
 struct Progress: Codable, Equatable, Sendable {
     var opened: [Int: Date] = [:]
     var ratings: [Int: Int] = [:]
+    /// Days whose first rating has already steered the doors ahead.
+    var steered: [Int]?
 }
 
 @MainActor
@@ -62,18 +66,18 @@ final class CalendarStore {
 
     func item(_ id: String) -> Item? { library.byID[id] }
 
-    func create(categories: [Category], budget: Budget) {
+    func create(categories: [Category], budget: Budget, theme: Int = 0) {
         let seed = CalendarBuilder.newSeed()
         let days = CalendarBuilder.pick(categories: categories, budget: budget, seed: seed, library: library)
         let year = Calendar.current.component(.year, from: now)
-        mine = SavedCalendar(year: year, categories: categories, budget: budget, seed: seed, days: days)
+        mine = SavedCalendar(year: year, categories: categories, budget: budget, seed: seed, days: days, theme: theme)
         progress = Progress()
         save()
     }
 
     /// Changes what's inside. Doors already opened keep their items; the rest are picked again.
-    func update(categories: [Category], budget: Budget) {
-        guard var cal = mine else { return create(categories: categories, budget: budget) }
+    func update(categories: [Category], budget: Budget, theme: Int = 0) {
+        guard var cal = mine else { return create(categories: categories, budget: budget, theme: theme) }
         let keep = Set(progress.opened.keys.compactMap { day in cal.days.indices.contains(day - 1) ? cal.days[day - 1] : nil })
         var fresh = CalendarBuilder.pick(
             categories: categories, budget: budget, seed: CalendarBuilder.newSeed(), excluding: keep, library: library
@@ -81,6 +85,7 @@ final class CalendarStore {
         cal.days = cal.days.enumerated().map { i, id in progress.opened[i + 1] != nil ? id : (fresh.next() ?? id) }
         cal.categories = categories
         cal.budget = budget
+        cal.theme = theme
         mine = cal
         save()
     }
@@ -91,16 +96,27 @@ final class CalendarStore {
         save()
     }
 
+    /// The first rating of a day also steers what waits behind the doors still locked.
     func rate(_ day: Int, stars: Int) {
         progress.ratings[day] = stars
+        if var cal = mine, !(progress.steered ?? []).contains(day) {
+            progress.steered = (progress.steered ?? []) + [day]
+            if let next = CalendarBuilder.steer(
+                days: cal.days, categories: cal.categories, seed: cal.seed, opened: Set(progress.opened.keys),
+                day: day, stars: stars, unlocked: unlocked, library: library
+            ) {
+                cal.days = next
+                mine = cal
+            }
+        }
         save()
     }
 
-    func makeGift(categories: [Category], budget: Budget, to: String, from: String, note: String) -> Gift {
+    func makeGift(categories: [Category], budget: Budget, theme: Int = 0, to: String, from: String, note: String) -> Gift {
         let seed = CalendarBuilder.newSeed()
         let days = CalendarBuilder.pick(categories: categories, budget: budget, seed: seed, library: library)
         let year = Calendar.current.component(.year, from: now)
-        return Gift(year: year, to: to, from: from, note: note, seed: seed, days: days)
+        return Gift(year: year, to: to, from: from, note: note, seed: seed, days: days, theme: theme)
     }
 
     func reset() {

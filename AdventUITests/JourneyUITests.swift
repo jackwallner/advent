@@ -6,7 +6,7 @@ final class JourneyUITests: XCTestCase {
 
     private func launch(day: Int) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-UITesting", "-DebugDay", "\(day)"]
+        app.launchArguments = ["-UITesting", "-StillScene", "-DebugDay", "\(day)"]
         app.launch()
         return app
     }
@@ -16,6 +16,12 @@ final class JourneyUITests: XCTestCase {
         shot.name = name
         shot.lifetime = .keepAlways
         add(shot)
+    }
+
+    /// A door opened for the first time is frosted over; a tap melts it.
+    private func clearFrost(_ app: XCUIApplication) {
+        let frost = app.buttons["frost"]
+        if frost.waitForExistence(timeout: 6) { frost.tap() }
     }
 
     private func makeCalendar(_ app: XCUIApplication, _ cats: [String], budget: String) {
@@ -34,22 +40,26 @@ final class JourneyUITests: XCTestCase {
         snap(app, "02-board")
 
         app.buttons["door-5"].tap()
+        XCTAssertTrue(app.buttons["frost"].waitForExistence(timeout: 6))
+        Thread.sleep(forTimeInterval: 1.2) // let the card finish growing out of the window
+        snap(app, "03-frost")
+        clearFrost(app)
         let title = app.staticTexts["day-title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         app.buttons["star-4"].tap()
         XCTAssertTrue(app.buttons["star-4"].isSelected)
-        snap(app, "03-door")
+        snap(app, "04-door")
         app.buttons["Close"].firstMatch.tap()
 
         let door = app.buttons["door-5"]
         XCTAssertTrue(door.waitForExistence(timeout: 5))
         XCTAssertTrue(door.label.hasPrefix("Day 5, "), door.label)
-        snap(app, "04-board-opened")
+        snap(app, "05-board-opened")
 
         // Relaunch keeps the opened door and rating.
         app.terminate()
         let again = XCUIApplication()
-        again.launchArguments = ["-DebugDay", "5"]
+        again.launchArguments = ["-StillScene", "-DebugDay", "5"]
         again.launch()
         XCTAssertTrue(again.buttons["door-5"].waitForExistence(timeout: 10))
         XCTAssertTrue(again.buttons["door-5"].label.hasPrefix("Day 5, "))
@@ -67,7 +77,7 @@ final class JourneyUITests: XCTestCase {
     func testCountdownBeforeDecember() {
         let app = launch(day: 0)
         makeCalendar(app, ["selfcare", "books", "music"], budget: "medium")
-        snap(app, "05-countdown")
+        snap(app, "06-countdown")
         app.buttons["door-1"].tap()
         XCTAssertTrue(app.staticTexts["Opens December 1"].waitForExistence(timeout: 3))
     }
@@ -80,19 +90,22 @@ final class JourneyUITests: XCTestCase {
         app.buttons["cat-family"].tap()
         app.buttons["cat-puzzles"].tap()
         app.buttons["budget-high"].tap()
+        app.buttons["house-1"].tap()
         app.textFields["to"].tap()
         app.textFields["to"].typeText("Hazel")
         app.textFields["from"].tap()
         app.textFields["from"].typeText("Grandma")
-        snap(app, "06-gift-setup")
+        snap(app, "07-gift-setup")
         app.buttons["make"].tap()
         XCTAssertTrue(app.buttons["send"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["For Hazel"].exists)
-        snap(app, "07-gift-share")
+        snap(app, "08-gift-share")
         app.buttons["preview"].tap()
         XCTAssertTrue(app.staticTexts["from Grandma"].waitForExistence(timeout: 5))
+        snap(app, "09-gift-preview")
         app.otherElements["gift-board"].buttons["door-24"].tap()
+        clearFrost(app)
         XCTAssertTrue(app.staticTexts["day-title"].waitForExistence(timeout: 5))
-        snap(app, "08-gift-preview-door")
+        snap(app, "10-gift-preview-door")
     }
 }

@@ -11,10 +11,13 @@ Advent calendar generator from Jack's mom's idea (2026-11-18): pick categories a
 
 ## Architecture
 - `content/items.json`: every door item (352: 8 categories x 24 free, 10 low, 6 medium, 4 high). `python3 content/validate.py` checks it; `python3 scripts/build-web-content.py` writes `docs/content.js`. The iOS app bundles items.json directly.
-- `docs/calendar.js` and `Shared/Services/CalendarBuilder.swift` are the same algorithm (seeded mulberry32 pick + door layout). They must stay identical: a gift made in the app opens in a browser. `AdventTests` pins Swift to vectors produced by the JS.
-- `Shared/Services/GiftLink.swift` / `giftLink` in docs/index.html: a gift is `https://jackwallner.com/ios/advent/#g=<base64url JSON {y,t,f,m,l,d}>`, days encoded as category letter + item number. No server.
+- `docs/calendar.js` and `Shared/Services/CalendarBuilder.swift` are the same algorithm (seeded mulberry32 pick, house layout, rating steer). They must stay identical: a gift made in the app opens in a browser. `AdventTests` pins Swift to vectors produced by the JS.
+- The calendar is a house at night: 24 shuttered windows in a 400 by 720 design space (`slot` in `docs/scene.js`, `HouseGeometry` in `Advent/Views/HouseView.swift`). Slot 0 is the attic, 1 to 20 the five floors, 21 and 23 the ground floor, 22 the front door, always day 24. Opening a day swings its shutters and lights the window; the first open shows the card under frost to wipe away. Three houses (`THEMES` / `HouseStyle.all`, same order and colors on both sides).
+- Ratings steer: the first rating of a day swaps one door that is still locked (4 or 5 stars brings one more of that category, 1 or 2 swaps the next one away). Own calendars only; gifts are fixed by their link.
+- `Shared/Services/GiftLink.swift` / `giftLink` in docs/index.html: a gift is `https://jackwallner.com/ios/advent/#g=<base64url JSON {y,t,f,m,l,d,h}>`, days encoded as category letter + item number, `h` the house (left out for house 0). No server.
 - `Shared/Services/CalendarStore.swift`: own calendar + opened/ratings in UserDefaults. Doors unlock by local date (`CalendarBuilder.unlocked`).
-- Views: `SetupView` (categories, budget, gift fields), `CalendarView` + `BoardView` (24 doors, 4 wide), `DaySheet`, `GiftFlow` (share link, preview).
+- Views: `SetupView` (categories, budget, house, gift fields), `CalendarView` + `HouseScene` (sky, house, snow, card overlay), `HouseView` (house and windows), `DayCard` (card, `FrostView`, `NoteCard`), `Scene` (sky, aurora, moon phase, snow that follows tilt), `GiftFlow` (share link, preview). `Bells.swift` synthesizes the chimes; the web does the same with WebAudio in `docs/scene.js`. No audio or image assets.
+- Icon and link preview art: `design/icon.html` and `design/og.html` (the preview reuses `docs/scene.js`). Serve the repo root, screenshot at 1024x1024 and 1200x630, save without alpha.
 
 ## Rules that hold everywhere
 - Never renumber or delete item ids in items.json; only append or edit text. Old gift links reference ids.
@@ -23,9 +26,10 @@ Advent calendar generator from Jack's mom's idea (2026-11-18): pick categories a
 - No em dashes in copy, content or comments (validate.py enforces it for content).
 
 ## App-specific notes
-- Ratings ask: after a door is rated and its sheet closes (`ReviewPromptTracker`, fleet rules).
+- Ratings ask: after a door is rated and its card closes (`ReviewPromptTracker`, fleet rules).
 - Reminders: local notifications at 8 AM on each remaining December day (`Reminders.swift`), asked for when the calendar is made.
-- Tests: `xcodebuild test` (unit + `JourneyUITests`, which attaches screenshots), `node scripts/test-web.mjs` for the web.
+- Tests: `xcodebuild test` (unit + `JourneyUITests`, which attaches screenshots), `node scripts/test-web.mjs` for the web. UI tests tap the `frost` button to melt the frost, and launch with `-StillScene` (`Motion.still`) so the snow and twinkle hold still; without it XCUITest never sees the app go idle and the run times out.
+- Motion is decoration only: every animation is off under Reduce Motion, where a first open skips the frost.
 
 ---
 Shared iOS conventions (build, simulator, release/TestFlight, ASC key, signing, ratings ask, gotchas):

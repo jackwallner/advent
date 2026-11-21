@@ -34,14 +34,14 @@ enum Category: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var symbol: String {
         switch self {
-        case .selfcare: "heart"
-        case .family: "house"
-        case .fitness: "figure.walk"
+        case .selfcare: "cup.and.saucer.fill"
+        case .family: "person.2.fill"
+        case .fitness: "dumbbell.fill"
         case .music: "music.note"
-        case .puzzles: "puzzlepiece"
-        case .food: "fork.knife"
-        case .humor: "face.smiling"
-        case .books: "book"
+        case .puzzles: "puzzlepiece.fill"
+        case .food: "birthday.cake.fill"
+        case .humor: "face.smiling.inverse"
+        case .books: "book.fill"
         }
     }
 }
